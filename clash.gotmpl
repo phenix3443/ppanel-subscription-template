@@ -293,6 +293,7 @@ proxies:
     {{- if ne (default "" $proxy.RealityShortId) "" }}
     short-id: {{ $proxy.RealityShortId }}
     {{- end }}
+    support-x25519mlkem768: true
   {{- end }}
 {{- else if eq $proxy.Type "trojan" }}
 - name: {{ $proxy.Name | quote }}
@@ -320,6 +321,7 @@ proxies:
     {{- if ne (default "" $proxy.RealityShortId) "" }}
     short-id: {{ $proxy.RealityShortId }}
     {{- end }}
+    support-x25519mlkem768: true
   {{- end }}
   {{- if or (eq $proxy.Transport "ws") (eq $proxy.Transport "websocket") }}
   network: ws

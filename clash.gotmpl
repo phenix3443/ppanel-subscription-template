@@ -41,6 +41,8 @@
 {{- range $proxy := $sorted -}}
   {{- if hasKey $supportSet $proxy.Type -}}
     {{- $supportedProxies = append $supportedProxies $proxy -}}
+  {{- else if and (eq $proxy.Type "snell") (eq (int (default 0 $proxy.Version)) 5) -}}
+    {{- $supportedProxies = append $supportedProxies $proxy -}}
   {{- end -}}
 {{- end -}}
 
@@ -151,11 +153,14 @@ proxies:
   password: {{ $password }}
   udp: true
   tfo: true
-  {{- if ne (default "" $proxy.Obfs) "" }}
+  {{- $obfsMode := default "" $proxy.Obfs -}}
+  {{- if and (ne $obfsMode "") (ne $obfsMode "none") }}
   plugin: obfs
   plugin-opts:
-    mode: {{ $proxy.Obfs }}
-    host: {{ default "" $proxy.ObfsHost }}
+    mode: {{ $obfsMode }}
+    {{- if ne (default "" $proxy.ObfsHost) "" }}
+    host: {{ $proxy.ObfsHost }}
+    {{- end }}
   {{- end }}
 {{- else if eq $proxy.Type "vmess" }}
 - name: {{ $proxy.Name | quote }}
@@ -198,8 +203,18 @@ proxies:
   {{- if $SkipVerify }}
   skip-cert-verify: true
   {{- end }}
+  {{- if ne (default "" $proxy.CertPinSHA256) "" }}
+  fingerprint: {{ $proxy.CertPinSHA256 }}
+  {{- end }}
   {{- if ne (default "" $proxy.Fingerprint) "" }}
   client-fingerprint: {{ $proxy.Fingerprint }}
+  {{- end }}
+  {{- if $proxy.EchEnable }}
+  ech-opts:
+    enable: true
+    {{- if ne (default "" $proxy.EchServerName) "" }}
+    query-server-name: {{ $proxy.EchServerName }}
+    {{- end }}
   {{- end }}
 {{- else if eq $proxy.Type "vless" }}
   {{- $encryptionStr := "" -}}
@@ -269,6 +284,35 @@ proxies:
     {{- if ne (default "" $proxy.XhttpMode) "" }}
     mode: {{ $proxy.XhttpMode }}
     {{- end }}
+    {{- if ne (default "" $proxy.XhttpExtra) "" }}
+    {{- $extra := fromJson $proxy.XhttpExtra }}
+    {{- if $extra.downloadSettings }}
+    {{- $ds := $extra.downloadSettings }}
+    download-settings:
+      server: {{ $ds.address | quote }}
+      port: {{ $ds.port }}
+      network: {{ default "xhttp" $ds.network }}
+      tls: true
+      {{- if $ds.tlsSettings }}
+      servername: {{ $ds.tlsSettings.serverName | quote }}
+      alpn: {{ $ds.tlsSettings.alpn | toJson }}
+      client-fingerprint: {{ default "chrome" $ds.tlsSettings.fingerprint }}
+      {{- end }}
+      {{- if $ds.realitySettings }}
+      servername: {{ default "" $ds.realitySettings.serverName | quote }}
+      client-fingerprint: {{ default "chrome" $ds.realitySettings.fingerprint }}
+      reality-opts:
+        public-key: {{ $ds.realitySettings.publicKey | quote }}
+        short-id: {{ default "" $ds.realitySettings.shortId | quote }}
+      {{- end }}
+      {{- if $ds.xhttpSettings }}
+      xhttp-opts:
+        host: {{ $ds.xhttpSettings.host | quote }}
+        path: {{ $ds.xhttpSettings.path | quote }}
+        mode: {{ default "auto" $ds.xhttpSettings.mode }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
   {{- else if eq $proxy.Transport "grpc" }}
   network: grpc
   grpc-opts:
@@ -283,6 +327,9 @@ proxies:
   {{- if $proxy.AllowInsecure }}
   skip-cert-verify: true
   {{- end }}
+  {{- if ne (default "" $proxy.CertPinSHA256) "" }}
+  fingerprint: {{ $proxy.CertPinSHA256 }}
+  {{- end }}
   {{- if ne (default "" $proxy.Fingerprint) "" }}
   client-fingerprint: {{ $proxy.Fingerprint }}
   {{- end }}
@@ -293,6 +340,13 @@ proxies:
     short-id: {{ $proxy.RealityShortId }}
     {{- end }}
     support-x25519mlkem768: true
+  {{- end }}
+  {{- if $proxy.EchEnable }}
+  ech-opts:
+    enable: true
+    {{- if ne (default "" $proxy.EchServerName) "" }}
+    query-server-name: {{ $proxy.EchServerName }}
+    {{- end }}
   {{- end }}
 {{- else if eq $proxy.Type "trojan" }}
 - name: {{ $proxy.Name | quote }}
@@ -310,6 +364,9 @@ proxies:
   {{- end }}
   {{- if $SkipVerify }}
   skip-cert-verify: true
+  {{- end }}
+  {{- if ne (default "" $proxy.CertPinSHA256) "" }}
+  fingerprint: {{ $proxy.CertPinSHA256 }}
   {{- end }}
   {{- if ne (default "" $proxy.Fingerprint) "" }}
   client-fingerprint: {{ $proxy.Fingerprint }}
@@ -344,6 +401,13 @@ proxies:
   grpc-opts:
     grpc-service-name: {{ default "grpc" $proxy.ServiceName }}
   {{- end }}
+  {{- if $proxy.EchEnable }}
+  ech-opts:
+    enable: true
+    {{- if ne (default "" $proxy.EchServerName) "" }}
+    query-server-name: {{ $proxy.EchServerName }}
+    {{- end }}
+  {{- end }}
 {{- else if or (eq $proxy.Type "hysteria2") (eq $proxy.Type "hysteria") }}
 - name: {{ $proxy.Name | quote }}
   type: hysteria2
@@ -357,6 +421,9 @@ proxies:
   {{- end }}
   {{- if $proxy.AllowInsecure }}
   skip-cert-verify: true
+  {{- end }}
+  {{- if ne (default "" $proxy.CertPinSHA256) "" }}
+  fingerprint: {{ $proxy.CertPinSHA256 }}
   {{- end }}
   {{- if ne (default "" $proxy.ObfsPassword) "" }}
   obfs: salamander
@@ -374,6 +441,13 @@ proxies:
   {{- if ne (default "" (printf "%v" $proxy.DownMbps)) "" }}
   down: "{{ $proxy.DownMbps }} Mbps"
   {{- end }}
+  {{- if $proxy.EchEnable }}
+  ech-opts:
+    enable: true
+    {{- if ne (default "" $proxy.EchServerName) "" }}
+    query-server-name: {{ $proxy.EchServerName }}
+    {{- end }}
+  {{- end }}
 {{- else if eq $proxy.Type "tuic" }}
 - name: {{ $proxy.Name | quote }}
   type: tuic
@@ -389,6 +463,9 @@ proxies:
   {{- if $proxy.AllowInsecure }}
   skip-cert-verify: true
   {{- end }}
+  {{- if ne (default "" $proxy.CertPinSHA256) "" }}
+  fingerprint: {{ $proxy.CertPinSHA256 }}
+  {{- end }}
   {{- if $proxy.DisableSNI }}
   disable-sni: true
   {{- end }}
@@ -400,6 +477,13 @@ proxies:
   {{- end }}
   {{- if ne (default "" $proxy.CongestionController) "" }}
   congestion-controller: {{ $proxy.CongestionController }}
+  {{- end }}
+  {{- if $proxy.EchEnable }}
+  ech-opts:
+    enable: true
+    {{- if ne (default "" $proxy.EchServerName) "" }}
+    query-server-name: {{ $proxy.EchServerName }}
+    {{- end }}
   {{- end }}
 {{- else if eq $proxy.Type "wireguard" }}
 - name: {{ $proxy.Name | quote }}
@@ -433,8 +517,36 @@ proxies:
   {{- if $proxy.AllowInsecure }}
   skip-cert-verify: true
   {{- end }}
+  {{- if ne (default "" $proxy.CertPinSHA256) "" }}
+  fingerprint: {{ $proxy.CertPinSHA256 }}
+  {{- end }}
   {{- if ne (default "" $proxy.Fingerprint) "" }}
   client-fingerprint: {{ $proxy.Fingerprint }}
+  {{- end }}
+  {{- if $proxy.EchEnable }}
+  ech-opts:
+    enable: true
+    {{- if ne (default "" $proxy.EchServerName) "" }}
+    query-server-name: {{ $proxy.EchServerName }}
+    {{- end }}
+  {{- end }}
+{{- else if eq $proxy.Type "snell" }}
+- name: {{ $proxy.Name | quote }}
+  type: snell
+  server: {{ $server }}
+  port: {{ $proxy.Port }}
+  psk: {{ $password }}
+  version: 5
+  reuse: true
+  udp: true
+  tfo: true
+  {{- $obfsMode := default "" $proxy.Obfs -}}
+  {{- if and (ne $obfsMode "") (ne $obfsMode "none") }}
+  obfs-opts:
+    mode: {{ $obfsMode }}
+    {{- if ne (default "" $proxy.ObfsHost) "" }}
+    host: {{ $proxy.ObfsHost }}
+    {{- end }}
   {{- end }}
 {{- else }}
 - name: {{ $proxy.Name | quote }}
